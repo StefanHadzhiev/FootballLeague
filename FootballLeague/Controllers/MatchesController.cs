@@ -47,7 +47,7 @@ namespace FootballLeague.Controllers
             return CreatedAtAction(nameof(GetMatches), new { id = response.Value.Id }, response);
         }
 
-        [HttpPut]
+        [HttpPut("{matchId}")]
 
         public async Task<ActionResult<TeamResponseDto>> UpdateMatch(string matchId, [FromBody] MatchUpdateDto dto)
         {

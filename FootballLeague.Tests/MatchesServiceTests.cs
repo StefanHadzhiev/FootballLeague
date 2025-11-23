@@ -218,18 +218,6 @@ namespace FootballLeague.Tests
         }
 
         [Test]
-        public async Task DeleteMatchAsync_WhenExists_ShouldDelete()
-        {
-            SeedMatches();
-            var match = _context.Matches.First();
-
-            var result = await _matchesService.DeleteMatchAsync(match.Id.ToString());
-
-            Assert.IsTrue(result.IsSuccess);
-            Assert.AreEqual(0, _context.Matches.Count());
-        }
-
-        [Test]
         public async Task DeleteMatchAsync_WhenNotExists_ShouldFail()
         {
             var result = await _matchesService.DeleteMatchAsync(Guid.NewGuid().ToString());

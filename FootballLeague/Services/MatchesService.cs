@@ -298,6 +298,9 @@ namespace FootballLeague.Services
 
         private async Task DeleteStats(TeamResponseDto homeTeam, TeamResponseDto awayTeam, MatchResponseDto match)
         {
+            homeTeam.MatchesPlayed--;
+            awayTeam.MatchesPlayed--;
+
             if(match.HomeScore > match.AwayScore)
             {
                 homeTeam.Wins--;
