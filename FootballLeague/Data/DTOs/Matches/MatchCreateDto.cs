@@ -1,0 +1,10 @@
+﻿namespace FootballLeague.Data.DTOs.Matches
+{
+    public class MatchCreateDto
+    {
+        public string HomeTeamName { get; set; }
+        public string AwayTeamName { get; set; }
+        public int HomeScore { get; set; }
+        public int AwayScore { get; set; }
+    }
+}
