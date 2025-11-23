@@ -11,6 +11,12 @@ A RESTful API for managing teams, played matches, and generating rankings based 
 
 ---
 
+## Run The Project: 
+1. Clone the repository locally
+2. Build the project
+3. Run the project
+
+
 ## Endpoints
 
 ### 1. Teams CRUD Endpoints
