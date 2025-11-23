@@ -2,7 +2,7 @@
 
 namespace FootballLeague.Data.DTOs.Matches
 {
-    public class MatchResponseDto
+    public class MatchResponseDto 
     {
         public Guid Id { get; set; }
         public Guid HomeTeamId { get; set; }

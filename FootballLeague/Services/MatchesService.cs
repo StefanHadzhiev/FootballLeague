@@ -1,12 +1,10 @@
 ﻿using FootballLeague.Data;
 using FootballLeague.Data.DTOs.Matches;
-using FootballLeague.Data.DTOs.Rankings;
 using FootballLeague.Data.DTOs.Teams;
 using FootballLeague.Data.Entities;
 using FootballLeague.Interfaces;
 using FootballLeague.Shared;
 using FootballLeague.Shared.Helpers;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace FootballLeague.Services
@@ -31,7 +29,7 @@ namespace FootballLeague.Services
 
                 HomeTeamId = t.HomeTeamId,
                 HomeTeamName = t.HomeTeamName,
-                HomeScore = t.HomeScore, 
+                HomeScore = t.HomeScore,
 
                 AwayTeamId = t.AwayTeamId,
                 AwayTeamName = t.AwayTeamName,
@@ -55,11 +53,11 @@ namespace FootballLeague.Services
                 Id = match.Id,
 
                 HomeTeamId = match.HomeTeamId,
-                HomeTeamName = match.HomeTeamName, 
+                HomeTeamName = match.HomeTeamName,
                 HomeScore = match.HomeScore,
 
                 AwayTeamId = match.AwayTeamId,
-                AwayTeamName = match.AwayTeamName,  
+                AwayTeamName = match.AwayTeamName,
                 AwayScore = match.AwayScore,
 
                 PlayedOn = match.PlayedOn.ToString()
@@ -83,13 +81,13 @@ namespace FootballLeague.Services
                 HomeScore = match.HomeScore,
 
                 AwayTeamId = awayTeam.Value.Id,
-                AwayTeamName = awayTeam.Value.Name,   
+                AwayTeamName = awayTeam.Value.Name,
                 AwayScore = match.AwayScore,
 
                 PlayedOn = DateTime.Now
             };
 
-            await HandleStats(homeTeam.Value, awayTeam.Value, match);
+            await CreateStats(homeTeam.Value, awayTeam.Value, match);
 
             this.context.Matches.Add(newMatch);
             await this.context.SaveChangesAsync();
@@ -109,7 +107,7 @@ namespace FootballLeague.Services
                 PlayedOn = newMatch.PlayedOn.ToString()
             };
 
-            return Result<MatchResponseDto>.Success(response, String.Format(Constants.PostSuccessMessage, "Match")); 
+            return Result<MatchResponseDto>.Success(response, String.Format(Constants.PostSuccessMessage, "Match"));
         }
         public async Task<Result<bool>> UpdateMatchAsync(string matchId, MatchUpdateDto dto)
         {
@@ -117,12 +115,15 @@ namespace FootballLeague.Services
 
             var match = this.context.Matches.FirstOrDefault(m => m.Id == guid);
 
-            if(match == null) return Result<bool>.Failure(String.Format(Constants.InvalidIdErrorMessage, "Match"));
+            if (match == null) return Result<bool>.Failure(String.Format(Constants.InvalidIdErrorMessage, "Match"));
 
             var homeTeam = await this.teamsService.GetTeamByNameAsync(dto.HomeTeamName);
             var awayTeam = await this.teamsService.GetTeamByNameAsync(dto.AwayTeamName);
 
-            match.HomeTeamId = homeTeam.Value.Id; 
+            var oldHomeScore = match.HomeScore;
+            var oldAwayScore = match.AwayScore;
+
+            match.HomeTeamId = homeTeam.Value.Id;
             match.HomeTeamName = homeTeam.Value.Name;
             match.HomeScore = dto.HomeScore;
 
@@ -131,6 +132,20 @@ namespace FootballLeague.Services
             match.AwayScore = dto.AwayScore;
 
             match.PlayedOn = dto.PlayedOn;
+
+            var MatchResponseDto = new MatchResponseDto()
+            {
+                Id = match.Id,
+                HomeTeamId = match.HomeTeamId,
+                HomeTeamName = match.HomeTeamName,
+                HomeScore = match.HomeScore,
+                AwayTeamId = match.AwayTeamId,
+                AwayTeamName = match.AwayTeamName,
+                AwayScore = match.AwayScore,
+                PlayedOn = match.PlayedOn.ToString(),
+            };
+
+            await this.UpdateStats(homeTeam.Value, awayTeam.Value, oldHomeScore, oldAwayScore, MatchResponseDto);
 
             await this.context.SaveChangesAsync();
 
@@ -150,25 +165,96 @@ namespace FootballLeague.Services
             return Result<bool>.Success(true, String.Format(Constants.DeleteSuccessMessage, "Match"));
         }
 
-        private async Task HandleStats(TeamResponseDto homeTeam, TeamResponseDto awayTeam, MatchCreateDto match)
+        private async Task CreateStats(TeamResponseDto homeTeam, TeamResponseDto awayTeam, MatchCreateDto match)
         {
-            homeTeam.MatchesPlayed++; 
+            homeTeam.MatchesPlayed++;
             awayTeam.MatchesPlayed++;
 
-            if(match.HomeScore > match.AwayScore)
+            if (match.HomeScore > match.AwayScore)
             {
                 homeTeam.Wins++;
                 awayTeam.Losses++;
-            } 
-            else if(match.HomeScore < match.AwayScore)
+            }
+            else if (match.HomeScore < match.AwayScore)
             {
                 homeTeam.Losses++;
-                awayTeam.Wins++;  
+                awayTeam.Wins++;
             }
             else
             {
                 homeTeam.Draws++;
                 awayTeam.Draws++;
+            }
+
+            var homeTeamUpdateDto = new TeamUpdateDto()
+            {
+                Name = homeTeam.Name,
+                Wins = homeTeam.Wins,
+                Draws = homeTeam.Draws,
+                Losses = homeTeam.Losses,
+                MatchesPlayed = homeTeam.MatchesPlayed,
+            };
+
+            var awayTeamUpdateDto = new TeamUpdateDto()
+            {
+                Name = awayTeam.Name,
+                Wins = awayTeam.Wins,
+                Draws = awayTeam.Draws,
+                Losses = awayTeam.Losses,
+                MatchesPlayed = awayTeam.MatchesPlayed,
+            };
+
+            await this.teamsService.UpdateTeamAsync(homeTeam.Name, homeTeamUpdateDto);
+            await this.teamsService.UpdateTeamAsync(awayTeam.Name, awayTeamUpdateDto);
+        }
+
+        private async Task UpdateStats(TeamResponseDto homeTeam, TeamResponseDto awayTeam, int oldHomeScore, int oldAwayScore, MatchResponseDto match)
+        {
+            // home team is winner again - nothing changes 
+            if (oldHomeScore > oldAwayScore && match.HomeScore < match.AwayScore)
+            {
+                homeTeam.Wins--;
+                homeTeam.Losses++;
+                awayTeam.Wins++;
+                awayTeam.Losses--;
+            }
+            else if (oldHomeScore > oldAwayScore && match.HomeScore == match.AwayScore)
+            {
+                homeTeam.Wins--;
+                homeTeam.Draws++;
+                awayTeam.Losses--;
+                awayTeam.Draws++;
+            }
+
+            if (oldAwayScore > oldHomeScore && match.AwayScore < match.HomeScore)
+            {
+                awayTeam.Wins--;
+                awayTeam.Losses++;
+                homeTeam.Wins++;
+                homeTeam.Losses--;
+            }
+            else if (oldAwayScore > oldHomeScore && match.AwayScore == match.HomeScore)
+            {
+                awayTeam.Wins--;
+                awayTeam.Draws++;
+                homeTeam.Losses--;
+                homeTeam.Draws++;
+            }
+
+            if (oldAwayScore == oldHomeScore && match.AwayScore > match.HomeScore)
+            {
+                awayTeam.Draws--;
+                homeTeam.Draws--;
+                awayTeam.Wins++;
+                homeTeam.Losses++;
+            }
+
+            else if (oldAwayScore == oldHomeScore && match.AwayScore < match.HomeScore)
+            {
+                awayTeam.Draws--;
+                homeTeam.Draws--;
+                awayTeam.Losses++;
+                homeTeam.Wins++;
             }
 
             var homeTeamUpdateDto = new TeamUpdateDto()
