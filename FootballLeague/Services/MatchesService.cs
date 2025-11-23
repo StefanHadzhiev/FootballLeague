@@ -133,7 +133,7 @@ namespace FootballLeague.Services
 
             match.PlayedOn = dto.PlayedOn;
 
-            var MatchResponseDto = new MatchResponseDto()
+            var matchDto = new MatchResponseDto()
             {
                 Id = match.Id,
                 HomeTeamId = match.HomeTeamId,
@@ -145,7 +145,7 @@ namespace FootballLeague.Services
                 PlayedOn = match.PlayedOn.ToString(),
             };
 
-            await this.UpdateStats(homeTeam.Value, awayTeam.Value, oldHomeScore, oldAwayScore, MatchResponseDto);
+            await this.UpdateStats(homeTeam.Value, awayTeam.Value, oldHomeScore, oldAwayScore, matchDto);
 
             await this.context.SaveChangesAsync();
 
@@ -158,6 +158,23 @@ namespace FootballLeague.Services
             var match = this.context.Matches.FirstOrDefault(m => m.Id == guid);
 
             if (match == null) return Result<bool>.Failure(String.Format(Constants.InvalidIdErrorMessage, "Match"));
+
+            var homeTeam = await this.teamsService.GetTeamByNameAsync(match.HomeTeamName);
+            var awayTeam = await this.teamsService.GetTeamByNameAsync(match.AwayTeamName);
+
+            var matchDto = new MatchResponseDto()
+            {
+                Id = match.Id,
+                HomeTeamId = match.HomeTeamId,
+                HomeTeamName = match.HomeTeamName,
+                HomeScore = match.HomeScore,
+                AwayTeamId = match.AwayTeamId,
+                AwayTeamName = match.AwayTeamName,
+                AwayScore = match.AwayScore,
+                PlayedOn = match.PlayedOn.ToString(),
+            };
+
+            await DeleteStats(homeTeam.Value, awayTeam.Value, matchDto);
 
             this.context.Matches.Remove(match);
             this.context.SaveChanges();
@@ -255,6 +272,45 @@ namespace FootballLeague.Services
                 homeTeam.Draws--;
                 awayTeam.Losses++;
                 homeTeam.Wins++;
+            }
+
+            var homeTeamUpdateDto = new TeamUpdateDto()
+            {
+                Name = homeTeam.Name,
+                Wins = homeTeam.Wins,
+                Draws = homeTeam.Draws,
+                Losses = homeTeam.Losses,
+                MatchesPlayed = homeTeam.MatchesPlayed,
+            };
+
+            var awayTeamUpdateDto = new TeamUpdateDto()
+            {
+                Name = awayTeam.Name,
+                Wins = awayTeam.Wins,
+                Draws = awayTeam.Draws,
+                Losses = awayTeam.Losses,
+                MatchesPlayed = awayTeam.MatchesPlayed,
+            };
+
+            await this.teamsService.UpdateTeamAsync(homeTeam.Name, homeTeamUpdateDto);
+            await this.teamsService.UpdateTeamAsync(awayTeam.Name, awayTeamUpdateDto);
+        }
+
+        private async Task DeleteStats(TeamResponseDto homeTeam, TeamResponseDto awayTeam, MatchResponseDto match)
+        {
+            if(match.HomeScore > match.AwayScore)
+            {
+                homeTeam.Wins--;
+                awayTeam.Losses--;
+            }
+            else if(match.HomeScore < match.AwayScore)
+            {
+                homeTeam.Losses--;
+                awayTeam.Wins--;
+            } else
+            {
+                homeTeam.Draws--;
+                awayTeam.Draws--;
             }
 
             var homeTeamUpdateDto = new TeamUpdateDto()
